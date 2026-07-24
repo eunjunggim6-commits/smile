@@ -1,0 +1,647 @@
+<!DOCTYPE html>
+<html lang="ko">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1, user-scalable=no">
+<title>발표 기록 스마트 자리표</title>
+<script src="https://cdn.tailwindcss.com"></script>
+<link rel="stylesheet" as="style" crossorigin href="https://cdn.jsdelivr.net/gh/orioncactus/pretendard@v1.3.9/dist/web/static/pretendard.css" />
+<script src="https://unpkg.com/lucide@latest/dist/umd/lucide.js"></script>
+<style>
+  :root{
+    --mint: #10B981;
+    --mint-dark: #059669;
+    --mint-soft: #ECFDF5;
+    --amber: #F59E0B;
+    --amber-soft: #FFFBEB;
+    --bg: #F8FAFC;
+  }
+  *{ font-family:'Pretendard', -apple-system, BlinkMacSystemFont, sans-serif; }
+  html,body{ background:var(--bg); overscroll-behavior:none; }
+  .no-scrollbar::-webkit-scrollbar{ display:none; }
+  .no-scrollbar{ -ms-overflow-style:none; scrollbar-width:none; }
+
+  .skeleton{
+    background:linear-gradient(90deg,#eef1f4 25%,#e6eaee 37%,#eef1f4 63%);
+    background-size:400% 100%;
+    animation:skel 1.4s ease infinite;
+  }
+  @keyframes skel{ 0%{background-position:100% 50%} 100%{background-position:0 50%} }
+
+  .fade-in{ animation:fadeIn .25s ease-out; }
+  @keyframes fadeIn{ from{opacity:0} to{opacity:1} }
+  .modal-pop{ animation:popIn .18s cubic-bezier(.2,.9,.3,1.2); }
+  @keyframes popIn{ from{opacity:0; transform:scale(.94)} to{opacity:1; transform:scale(1)} }
+
+  .seat{ transition:all .18s ease-out; }
+  .seat:not(.seat-empty):hover{ transform:translateY(-2px); }
+  .seat:active{ transform:scale(.95); }
+
+  .tab-btn, .mode-btn{ transition:all .18s ease-out; }
+  .icon-btn{ transition:all .18s ease-out; }
+  .icon-btn:hover{ transform:translateY(-1px); filter:brightness(0.97); }
+  .icon-btn:active{ transform:scale(.93); }
+
+  input:focus{ outline:none; }
+</style>
+</head>
+<body class="min-h-screen flex flex-col text-slate-800">
+
+<!-- ============ Header ============ -->
+<header class="bg-white/85 backdrop-blur-md shadow-sm px-2 sm:px-4 py-2 sm:py-3 flex items-center justify-between sticky top-0 z-20">
+  <div id="classTabs" class="flex items-center gap-1.5 sm:gap-2 overflow-x-auto no-scrollbar"></div>
+  <div class="flex items-center gap-1.5 shrink-0 ml-2">
+    <button id="exportBtn" class="icon-btn p-2 sm:p-2.5 rounded-full shadow-sm" style="color:var(--mint-dark); background:var(--mint-soft);" title="엑셀 다운로드">
+      <i data-lucide="download" class="w-[18px] h-[18px] sm:w-5 sm:h-5"></i>
+    </button>
+    <button id="settingsBtn" class="icon-btn p-2 sm:p-2.5 text-slate-500 bg-white rounded-full shadow-sm" title="학생 데이터 설정">
+      <i data-lucide="settings" class="w-[18px] h-[18px] sm:w-5 sm:h-5"></i>
+    </button>
+  </div>
+</header>
+
+<!-- ============ Toolbar ============ -->
+<div class="px-2 sm:px-4 py-2 sm:py-3 flex items-center justify-between bg-white/40 backdrop-blur-sm">
+  <div class="flex items-center gap-1 sm:gap-2 bg-slate-100/80 p-1 rounded-xl">
+    <button id="modeRecordBtn" class="mode-btn flex items-center gap-1 sm:gap-1.5 px-2.5 py-1.5 sm:px-4 sm:py-2 rounded-lg text-xs sm:text-sm font-bold">
+      <i data-lucide="message-square" class="w-4 h-4 sm:w-[18px] sm:h-[18px]"></i> 발표 기록
+    </button>
+    <button id="modeEditBtn" class="mode-btn flex items-center gap-1 sm:gap-1.5 px-2.5 py-1.5 sm:px-4 sm:py-2 rounded-lg text-xs sm:text-sm font-bold text-slate-500">
+      <i data-lucide="pen-line" class="w-4 h-4 sm:w-[18px] sm:h-[18px]"></i> 자리 배치
+    </button>
+  </div>
+  <span id="editHint" class="hidden text-[10px] sm:text-xs font-bold px-2 py-1 sm:px-3 sm:py-1 rounded-full shadow-sm whitespace-nowrap" style="color:var(--amber); background:var(--amber-soft);"></span>
+</div>
+
+<!-- ============ Main Content (Grid) ============ -->
+<main class="flex-1 w-full p-2 sm:p-4 flex flex-col items-center pb-24 overflow-x-hidden">
+  <div class="w-full max-w-5xl flex flex-col items-center bg-white p-3 sm:p-6 rounded-2xl sm:rounded-3xl shadow-md">
+    <div id="seatGrid" class="w-full grid gap-1 sm:gap-2 md:gap-3 mb-4 sm:mb-8" style="grid-template-columns:repeat(8,minmax(0,1fr));"></div>
+    <div class="w-2/3 max-w-[200px] sm:max-w-[280px] h-8 sm:h-12 text-white rounded-t-xl sm:rounded-t-2xl shadow-inner flex items-center justify-center text-xs sm:text-sm font-black tracking-widest relative overflow-hidden" style="background:#334155;">
+      <div class="absolute inset-0 bg-white/10"></div>
+      교 탁
+    </div>
+  </div>
+</main>
+
+<!-- ============ Modal: Record Presentation ============ -->
+<div id="recordModal" class="hidden fixed inset-0 bg-slate-900/40 backdrop-blur-sm z-50 flex items-center justify-center p-4">
+  <div class="modal-pop bg-white rounded-3xl w-full max-w-sm p-6 sm:p-8 shadow-2xl relative">
+    <button data-close="recordModal" class="icon-btn absolute top-4 sm:top-5 right-4 sm:right-5 text-slate-400 bg-slate-100 p-2 rounded-full"><i data-lucide="x" class="w-5 h-5"></i></button>
+    <div class="text-center mb-6">
+      <div id="recordAvatar" class="w-16 h-16 rounded-full flex items-center justify-center mx-auto mb-3" style="background:var(--mint-soft);">
+        <span id="recordInitial" class="text-2xl font-black" style="color:var(--mint-dark);"></span>
+      </div>
+      <h2 id="recordName" class="text-2xl font-black text-slate-800"></h2>
+      <p class="text-sm text-slate-500 font-medium mt-1">발표 기록을 추가합니다</p>
+    </div>
+    <form id="recordForm">
+      <input name="details" type="text" placeholder="예: 대단원 3번 문제 발표"
+        class="w-full border-2 border-slate-200 rounded-xl p-4 mb-6 text-center font-medium placeholder:text-slate-400"
+        style="caret-color:var(--mint-dark);" autocomplete="off" />
+      <div class="flex gap-3">
+        <button type="button" data-close="recordModal" class="icon-btn flex-1 p-4 bg-slate-100 text-slate-700 font-bold rounded-xl">취소</button>
+        <button type="submit" class="icon-btn flex-1 p-4 text-white font-bold rounded-xl shadow-lg" style="background:var(--mint); box-shadow:0 10px 20px -8px rgba(16,185,129,.5);">기록하기</button>
+      </div>
+    </form>
+  </div>
+</div>
+
+<!-- ============ Modal: Add Student ============ -->
+<div id="addModal" class="hidden fixed inset-0 bg-slate-900/40 backdrop-blur-sm z-50 flex items-center justify-center p-4">
+  <div class="modal-pop bg-white rounded-3xl w-full max-w-sm p-6 sm:p-8 shadow-2xl relative">
+    <button data-close="addModal" class="icon-btn absolute top-4 sm:top-5 right-4 sm:right-5 text-slate-400 bg-slate-100 p-2 rounded-full"><i data-lucide="x" class="w-5 h-5"></i></button>
+    <div class="text-center mb-6">
+      <div class="w-16 h-16 rounded-full flex items-center justify-center mx-auto mb-3" style="background:var(--amber-soft); color:var(--amber);"><i data-lucide="user" class="w-8 h-8"></i></div>
+      <h2 class="text-2xl font-black text-slate-800">새 학생 추가</h2>
+    </div>
+    <form id="addForm">
+      <input name="studentName" type="text" placeholder="학생 이름"
+        class="w-full border-2 border-slate-200 rounded-xl p-4 mb-6 text-center font-bold placeholder:text-slate-400" required autocomplete="off" />
+      <div class="flex gap-3">
+        <button type="button" data-close="addModal" class="icon-btn flex-1 p-4 bg-slate-100 text-slate-700 font-bold rounded-xl">취소</button>
+        <button type="submit" class="icon-btn flex-1 p-4 text-white font-bold rounded-xl shadow-lg" style="background:var(--amber); box-shadow:0 10px 20px -8px rgba(245,158,11,.5);">추가하기</button>
+      </div>
+    </form>
+  </div>
+</div>
+
+<!-- ============ Modal: Edit / Delete Student ============ -->
+<div id="editModal" class="hidden fixed inset-0 bg-slate-900/40 backdrop-blur-sm z-50 flex items-center justify-center p-4">
+  <div class="modal-pop bg-white rounded-3xl w-full max-w-sm p-6 sm:p-8 shadow-2xl relative">
+    <button data-close="editModal" class="icon-btn absolute top-4 sm:top-5 right-4 sm:right-5 text-slate-400 bg-slate-100 p-2 rounded-full"><i data-lucide="x" class="w-5 h-5"></i></button>
+    <div class="text-center mb-6"><h2 class="text-2xl font-black text-slate-800">학생 정보 관리</h2></div>
+    <form id="editForm">
+      <input name="studentName" type="text" class="w-full border-2 border-slate-200 rounded-xl p-4 mb-6 text-center font-bold" required autocomplete="off" />
+      <div class="flex flex-col gap-3">
+        <button type="submit" class="icon-btn w-full p-4 bg-slate-800 text-white font-bold rounded-xl shadow-lg">이름 저장</button>
+        <div class="flex gap-3">
+          <button type="button" data-close="editModal" class="icon-btn flex-1 p-4 bg-slate-100 text-slate-700 font-bold rounded-xl">취소</button>
+          <button type="button" id="deleteToggleBtn" class="icon-btn flex items-center justify-center gap-1.5 flex-1 p-4 font-bold rounded-xl" style="background:#FFF1F2; color:#E11D48;">
+            <i data-lucide="trash-2" class="w-[18px] h-[18px]"></i> <span id="deleteToggleLabel">삭제</span>
+          </button>
+        </div>
+      </div>
+    </form>
+  </div>
+</div>
+
+<!-- ============ Modal: Reset Seating ============ -->
+<div id="resetModal" class="hidden fixed inset-0 bg-slate-900/40 backdrop-blur-sm z-50 flex items-center justify-center p-4">
+  <div class="modal-pop bg-white rounded-3xl w-full max-w-sm p-6 sm:p-8 shadow-2xl relative">
+    <button data-close="resetModal" class="icon-btn absolute top-4 sm:top-5 right-4 sm:right-5 text-slate-400 bg-slate-100 p-2 rounded-full"><i data-lucide="x" class="w-5 h-5"></i></button>
+    <div class="text-center mb-6">
+      <div class="w-16 h-16 rounded-full flex items-center justify-center mx-auto mb-3" style="background:#FFF1F2; color:#E11D48;"><i data-lucide="refresh-cw" class="w-7 h-7"></i></div>
+      <h2 class="text-2xl font-black text-slate-800">자리표 초기화</h2>
+      <p class="text-sm text-slate-500 font-medium mt-2 leading-relaxed">기존 데이터를 <span class="font-bold" style="color:#E11D48;">모두 삭제</span>하고 초기 배열로 복원합니다.</p>
+    </div>
+    <div class="flex gap-3">
+      <button type="button" data-close="resetModal" class="icon-btn flex-1 p-4 bg-slate-100 text-slate-700 font-bold rounded-xl">취소</button>
+      <button type="button" id="resetConfirmBtn" class="icon-btn flex-1 p-4 text-white font-bold rounded-xl shadow-lg" style="background:#E11D48;">초기화 진행</button>
+    </div>
+  </div>
+</div>
+
+<!-- ============ Loading Overlay (Skeleton) ============ -->
+<div id="loadingOverlay" class="fixed inset-0 z-40 flex flex-col" style="background:var(--bg);">
+  <div class="px-2 sm:px-4 py-2 sm:py-3 flex items-center gap-2">
+    <div class="skeleton h-8 w-16 rounded-full"></div>
+    <div class="skeleton h-8 w-16 rounded-full"></div>
+    <div class="skeleton h-8 w-16 rounded-full"></div>
+  </div>
+  <div class="flex-1 p-2 sm:p-4 flex items-center justify-center">
+    <div class="w-full max-w-5xl bg-white p-3 sm:p-6 rounded-3xl shadow-md">
+      <div class="grid gap-1 sm:gap-2 md:gap-3" style="grid-template-columns:repeat(8,minmax(0,1fr));">
+        <!-- 48 skeleton cells injected by JS -->
+      </div>
+    </div>
+  </div>
+</div>
+
+<!-- ============ Script ============ -->
+<script type="module">
+import { initializeApp } from "https://www.gstatic.com/firebasejs/10.13.2/firebase-app.js";
+import { getAuth, signInAnonymously, onAuthStateChanged } from "https://www.gstatic.com/firebasejs/10.13.2/firebase-auth.js";
+import {
+  getFirestore, collection, doc, setDoc, getDocs, deleteDoc, updateDoc, onSnapshot, serverTimestamp
+} from "https://www.gstatic.com/firebasejs/10.13.2/firebase-firestore.js";
+
+/* -----------------------------------------------------------
+   🚨 설정 영역 — 배포 전 아래 두 값을 반드시 채워주세요
+----------------------------------------------------------- */
+// 1) Firebase 콘솔 > 프로젝트 설정 > 일반 > "내 앱"에서 복사한 설정값을 붙여넣으세요.
+const firebaseConfig = {
+  apiKey: "AIzaSyCVKwG__ERsP16zU_d42X05OPF2omfUg24",
+  authDomain: "eunjungbalpyogirokapp.firebaseapp.com",
+  projectId: "eunjungbalpyogirokapp",
+  storageBucket: "eunjungbalpyogirokapp.firebasestorage.app",
+  messagingSenderId: "238400621100",
+  appId: "1:238400621100:web:b5e4b92edc36a3c1035f89"
+};
+
+// 2) 구글 앱스 스크립트 웹 앱 URL (이미 채워져 있습니다)
+const GOOGLE_SCRIPT_URL = "https://script.google.com/macros/s/AKfycbzobjOAKHE8XmbGnPKq2NwcMGUrvykDXt1pTF8ai64sU3vfA9lYGBY9cwCKzGqpTitk/exec";
+
+/* -----------------------------------------------------------
+   상수 및 초기 데이터 (제공된 실제 자리표 이미지와 대조하여 검증됨)
+----------------------------------------------------------- */
+const ROWS = 6;
+const COLS = 8;
+const CLASS_LIST = ['2-3', '2-7', '2-11'];
+const EMOJIS = ['⭐', '☀️', '🌷', '🌙', '🌱'];
+
+const DEFAULT_DATA = {
+  '2-7': [
+    { r:0,c:4,n:'민건희',emoji:'⭐' }, { r:0,c:5,n:'김도현',emoji:'☀️' }, { r:0,c:6,n:'이도경',emoji:'⭐' }, { r:0,c:7,n:'황아현',emoji:'☀️' },
+    { r:1,c:4,n:'곽호석',emoji:'🌷' }, { r:1,c:5,n:'송서원',emoji:'🌙' }, { r:1,c:6,n:'박희진',emoji:'🌷' }, { r:1,c:7,n:'허윤서',emoji:'🌙' },
+    { r:2,c:0,n:'곽도훈',emoji:'🌙' }, { r:2,c:1,n:'염지민',emoji:'⭐' }, { r:2,c:2,n:'김지민',emoji:'⭐' }, { r:2,c:3,n:'박진',emoji:'🌙' }, { r:2,c:4,n:'이정웅',emoji:'🌱' }, { r:2,c:5,n:'서치혁',emoji:'🌱' }, { r:2,c:6,n:'권나현',emoji:'☀️' }, { r:2,c:7,n:'탁예린',emoji:'🌱' },
+    { r:3,c:0,n:'조준희',emoji:'👑' }, { r:3,c:1,n:'최우석',emoji:'🌷' }, { r:3,c:2,n:'김수민',emoji:'🌷' }, { r:3,c:3,n:'이수인',emoji:'👑' }, { r:3,c:4,n:'안정혁',emoji:'⭐' }, { r:3,c:5,n:'채승한',emoji:'☀️' }, { r:3,c:6,n:'임유리',emoji:'⭐' }, { r:3,c:7,n:'김은서',emoji:'🌙' },
+    { r:4,c:0,n:'김경환',emoji:'☀️' }, { r:4,c:1,n:'이민성',emoji:'🌱' }, { r:4,c:2,n:'이연지',emoji:'🌱' }, { r:4,c:3,n:'박소희',emoji:'☀️' }, { r:4,c:4,n:'김승환',emoji:'🌷' }, { r:4,c:5,n:'조성준',emoji:'🌙' }, { r:4,c:6,n:'정유빈',emoji:'🌱' }, { r:4,c:7,n:'배윤서',emoji:'🌷' }
+  ],
+  '2-3': [
+    { r:0,c:3,n:'낙원',emoji:'🌷',highlight:true }, { r:0,c:4,n:'혜찬',emoji:'🌙',highlight:true },
+    { r:1,c:1,n:'지율',emoji:'🌱' }, { r:1,c:2,n:'지민',emoji:'🌱' }, { r:1,c:3,n:'규식',emoji:'⭐' }, { r:1,c:4,n:'선빈',emoji:'☀️' }, { r:1,c:5,n:'유정',emoji:'⭐' },
+    { r:2,c:1,n:'백영기',emoji:'⭐' }, { r:2,c:2,n:'서태웅',emoji:'☀️' }, { r:2,c:3,n:'호연',emoji:'🌷' }, { r:2,c:4,n:'하린',emoji:'☀️' }, { r:2,c:5,n:'유민',emoji:'🌷' }, { r:2,c:6,n:'소율',emoji:'☀️' },
+    { r:3,c:1,n:'변지훈',emoji:'🌷' }, { r:3,c:2,n:'이인욱',emoji:'🌙' }, { r:3,c:3,n:'은서',emoji:'⭐' }, { r:3,c:4,n:'시호',emoji:'🌙' }, { r:3,c:5,n:'진원',emoji:'🌱' }, { r:3,c:6,n:'채윤',emoji:'🌙' },
+    { r:4,c:1,n:'주지애',emoji:'☀️' }, { r:4,c:2,n:'김민솔',emoji:'⭐' }, { r:4,c:3,n:'영준',emoji:'⭐' }, { r:4,c:4,n:'재민',emoji:'☀️' }, { r:4,c:5,n:'주연',emoji:'🌷' }, { r:4,c:6,n:'구유나',emoji:'☀️' },
+    { r:5,c:1,n:'하연',emoji:'🌷' }, { r:5,c:2,n:'임연우',emoji:'🌙' }, { r:5,c:3,n:'도현',emoji:'🌱' }, { r:5,c:4,n:'현빈',emoji:'🌙' }, { r:5,c:5,n:'정현',emoji:'🌱' }, { r:5,c:6,n:'한다영',emoji:'🌙' }
+  ],
+  '2-11': [
+    { r:0,c:4,n:'민석',emoji:'🌱' }, { r:0,c:6,n:'연아',emoji:'☀️' }, { r:0,c:7,n:'아인',emoji:'⭐' },
+    { r:1,c:0,n:'예림',emoji:'🌷' }, { r:1,c:1,n:'유나',emoji:'🌱' }, { r:1,c:3,n:'준호',emoji:'☀️' }, { r:1,c:4,n:'태경',emoji:'🌷' }, { r:1,c:6,n:'하연',emoji:'🌙' }, { r:1,c:7,n:'효원',emoji:'🌷' },
+    { r:2,c:0,n:'정우',emoji:'⭐' }, { r:2,c:1,n:'수담',emoji:'🌙' }, { r:2,c:3,n:'찬욱',emoji:'🌙' }, { r:2,c:4,n:'찬희',emoji:'⭐' }, { r:2,c:6,n:'인호',emoji:'☀️' }, { r:2,c:7,n:'정민',emoji:'🌷' },
+    { r:3,c:0,n:'윤서',emoji:'🌱' }, { r:3,c:1,n:'동후',emoji:'☀️' }, { r:3,c:3,n:'서준',emoji:'🌱' }, { r:3,c:4,n:'원진',emoji:'🌱' }, { r:3,c:6,n:'재훈',emoji:'🌙' }, { r:3,c:7,n:'준민',emoji:'🌱' },
+    { r:4,c:0,n:'태연',emoji:'🌙' }, { r:4,c:1,n:'승민',emoji:'⭐' }, { r:4,c:3,n:'인영',emoji:'🌷' }, { r:4,c:4,n:'연두',emoji:'☀️' }, { r:4,c:6,n:'고은',emoji:'☀️' }, { r:4,c:7,n:'보람',emoji:'⭐' },
+    { r:5,c:0,n:'하은',emoji:'🌷' }, { r:5,c:1,n:'태민',emoji:'☀️' }, { r:5,c:3,n:'윤영',emoji:'⭐' }, { r:5,c:4,n:'지혜',emoji:'🌙' }, { r:5,c:6,n:'은지',emoji:'🌙' }, { r:5,c:7,n:'민영',emoji:'🌱' }
+  ]
+};
+
+const APP_ID = 'daesu-seat-v1';
+
+/* -----------------------------------------------------------
+   Firebase init
+----------------------------------------------------------- */
+const fbApp = initializeApp(firebaseConfig);
+const auth = getAuth(fbApp);
+const db = getFirestore(fbApp);
+
+/* -----------------------------------------------------------
+   상태
+----------------------------------------------------------- */
+const S = {
+  user: null,
+  currentClass: '2-7',
+  students: [],
+  presentations: [],
+  isEditMode: false,
+  selectedSeat: null,   // { row, col, student }
+  pendingAddSeat: null,  // { row, col }
+  deleteConfirm: false,
+  loading: true,
+};
+
+/* -----------------------------------------------------------
+   DOM 참조
+----------------------------------------------------------- */
+const $classTabs = document.getElementById('classTabs');
+const $seatGrid = document.getElementById('seatGrid');
+const $editHint = document.getElementById('editHint');
+const $modeRecordBtn = document.getElementById('modeRecordBtn');
+const $modeEditBtn = document.getElementById('modeEditBtn');
+const $loadingOverlay = document.getElementById('loadingOverlay');
+
+function refreshIcons(){ if (window.lucide) lucide.createIcons(); }
+
+/* -----------------------------------------------------------
+   초기 스켈레톤 그리드 채우기
+----------------------------------------------------------- */
+(function buildSkeleton(){
+  const grid = document.querySelector('#loadingOverlay .grid');
+  for (let i = 0; i < ROWS * COLS; i++) {
+    const cell = document.createElement('div');
+    cell.className = 'skeleton aspect-square rounded-lg sm:rounded-2xl';
+    grid.appendChild(cell);
+  }
+})();
+
+/* -----------------------------------------------------------
+   반 탭 렌더링
+----------------------------------------------------------- */
+function renderTabs(){
+  $classTabs.innerHTML = '';
+  CLASS_LIST.forEach(cls => {
+    const btn = document.createElement('button');
+    btn.className = 'tab-btn px-3 py-1.5 sm:px-5 sm:py-2 rounded-full font-bold text-xs sm:text-sm whitespace-nowrap';
+    const active = cls === S.currentClass;
+    btn.style.cssText = active
+      ? 'background:var(--mint); color:#fff; box-shadow:0 6px 16px -6px rgba(16,185,129,.55); transform:scale(1.05);'
+      : 'background:#fff; color:#64748b; box-shadow:0 1px 2px rgba(0,0,0,.04);';
+    btn.textContent = `${cls}반`;
+    btn.addEventListener('click', () => {
+      S.currentClass = cls;
+      S.selectedSeat = null;
+      renderTabs();
+      renderGrid();
+    });
+    $classTabs.appendChild(btn);
+  });
+}
+
+/* -----------------------------------------------------------
+   모드 토글 렌더링
+----------------------------------------------------------- */
+function renderModeButtons(){
+  if (S.isEditMode) {
+    $modeRecordBtn.style.cssText = 'background:transparent; color:#64748b;';
+    $modeEditBtn.style.cssText = 'background:#fff; color:var(--amber); box-shadow:0 1px 2px rgba(0,0,0,.06);';
+    $editHint.classList.remove('hidden');
+    $editHint.textContent = S.selectedSeat ? '이동 자리 터치' : '학생/빈자리 터치';
+  } else {
+    $modeRecordBtn.style.cssText = 'background:#fff; color:var(--mint-dark); box-shadow:0 1px 2px rgba(0,0,0,.06);';
+    $modeEditBtn.style.cssText = 'background:transparent; color:#64748b;';
+    $editHint.classList.add('hidden');
+  }
+}
+
+$modeRecordBtn.addEventListener('click', () => {
+  S.isEditMode = false; S.selectedSeat = null;
+  renderModeButtons(); renderGrid();
+});
+$modeEditBtn.addEventListener('click', () => {
+  S.isEditMode = true;
+  renderModeButtons(); renderGrid();
+});
+
+/* -----------------------------------------------------------
+   좌석 그리드 렌더링
+----------------------------------------------------------- */
+function getStudentAt(row, col){
+  return S.students.find(s => s.classId === S.currentClass && s.row === row && s.col === col);
+}
+
+function renderGrid(){
+  $seatGrid.innerHTML = '';
+  for (let r = 0; r < ROWS; r++) {
+    for (let c = 0; c < COLS; c++) {
+      const student = getStudentAt(r, c);
+      const isSelected = S.selectedSeat && S.selectedSeat.row === r && S.selectedSeat.col === c;
+      const cell = document.createElement('div');
+      cell.dataset.row = r; cell.dataset.col = c;
+      cell.className = 'seat relative flex flex-col items-center justify-center p-0.5 sm:p-2 rounded-lg sm:rounded-2xl cursor-pointer select-none aspect-square' + (!student ? ' seat-empty' : '');
+
+      let style = '';
+      if (student) {
+        if (student.highlight) {
+          style = 'background:var(--mint-soft); border:1px solid #6EE7B7; box-shadow:0 1px 3px rgba(0,0,0,.05);';
+        } else {
+          style = 'background:#fff; border:1px solid #E2E8F0; box-shadow:0 1px 3px rgba(0,0,0,.05);';
+        }
+      } else {
+        style = 'background:#F8FAFC; border:1.5px dashed #CBD5E1;';
+      }
+      if (isSelected) {
+        style += 'outline:3px solid rgba(245,158,11,.4); background:var(--amber-soft); border-color:var(--amber); transform:scale(1.05); z-index:10;';
+      }
+      cell.style.cssText = style;
+
+      if (student) {
+        cell.innerHTML = `
+          <span class="font-extrabold text-slate-800 text-[9px] min-[360px]:text-[10px] sm:text-xs md:text-sm tracking-tighter whitespace-nowrap leading-none mt-0.5 sm:mt-1">${escapeHtml(student.name)}</span>
+          <span class="text-[10px] min-[360px]:text-[11px] sm:text-xs md:text-sm leading-none mt-0.5 sm:mt-1">${student.emoji || '⭐'}</span>
+          ${student.presentCount > 0 ? `<div class="absolute -top-1.5 -right-1.5 sm:-top-2.5 sm:-right-2.5 text-white text-[8px] sm:text-[11px] font-black w-3.5 h-3.5 sm:w-6 sm:h-6 flex items-center justify-center rounded-full shadow-md border sm:border-2 border-white" style="background:linear-gradient(135deg,var(--mint),var(--mint-dark));">${student.presentCount}</div>` : ''}
+        `;
+      } else if (S.isEditMode) {
+        cell.innerHTML = `<i data-lucide="plus" class="text-slate-300 w-3 h-3 sm:w-5 sm:h-5 md:w-6 md:h-6"></i>`;
+      }
+
+      cell.addEventListener('click', () => handleCellClick(r, c));
+      $seatGrid.appendChild(cell);
+    }
+  }
+  refreshIcons();
+}
+
+function escapeHtml(str){
+  const div = document.createElement('div');
+  div.textContent = str;
+  return div.innerHTML;
+}
+
+/* -----------------------------------------------------------
+   좌석 클릭 로직 (기록 모드 / 배치 모드)
+----------------------------------------------------------- */
+function handleCellClick(row, col){
+  const student = getStudentAt(row, col);
+
+  if (S.isEditMode) {
+    if (S.selectedSeat) {
+      if (S.selectedSeat.row === row && S.selectedSeat.col === col && student) {
+        openEditModal(student);
+        S.selectedSeat = null;
+      } else {
+        moveOrSwapStudent(S.selectedSeat.student, student, S.selectedSeat.row, S.selectedSeat.col, row, col);
+        S.selectedSeat = null;
+      }
+      renderModeButtons(); renderGrid();
+    } else {
+      if (student) {
+        S.selectedSeat = { row, col, student };
+        renderModeButtons(); renderGrid();
+      } else {
+        S.pendingAddSeat = { row, col };
+        openModal('addModal');
+      }
+    }
+  } else {
+    if (student) openRecordModal(student);
+  }
+}
+
+/* -----------------------------------------------------------
+   Firestore 헬퍼
+----------------------------------------------------------- */
+function studentsCol(){ return collection(db, 'artifacts', APP_ID, 'users', S.user.uid, 'students'); }
+function presentationsCol(){ return collection(db, 'artifacts', APP_ID, 'users', S.user.uid, 'presentations'); }
+function studentDocRef(id){ return doc(db, 'artifacts', APP_ID, 'users', S.user.uid, 'students', id); }
+
+async function moveOrSwapStudent(studentA, studentB, rowA, colA, rowB, colB){
+  try {
+    if (studentA) await updateDoc(studentDocRef(studentA.id), { row: rowB, col: colB });
+    if (studentB) await updateDoc(studentDocRef(studentB.id), { row: rowA, col: colA });
+  } catch (e) { console.error('자리 변경 에러:', e); }
+}
+
+async function handleAddStudent(name){
+  if (!name.trim() || !S.pendingAddSeat) return;
+  const randomEmoji = EMOJIS[Math.floor(Math.random() * EMOJIS.length)];
+  const newRef = doc(studentsCol());
+  try {
+    await setDoc(newRef, {
+      classId: S.currentClass,
+      name: name.trim(),
+      row: S.pendingAddSeat.row,
+      col: S.pendingAddSeat.col,
+      presentCount: 0,
+      emoji: randomEmoji,
+      highlight: false
+    });
+  } catch (e) { console.error('학생 추가 에러:', e); }
+  S.pendingAddSeat = null;
+  closeModal('addModal');
+}
+
+async function handleUpdateStudent(studentId, newName){
+  if (!newName.trim()) return;
+  try { await updateDoc(studentDocRef(studentId), { name: newName.trim() }); }
+  catch (e) { console.error('이름 변경 에러:', e); }
+  closeModal('editModal');
+}
+
+async function handleDeleteStudent(studentId){
+  try { await deleteDoc(studentDocRef(studentId)); }
+  catch (e) { console.error('학생 삭제 에러:', e); }
+  closeModal('editModal');
+}
+
+async function handleRecordPresentation(student, details){
+  const currentDate = new Date().toLocaleDateString();
+  const cleanDetails = details.trim();
+  try {
+    const recordRef = doc(presentationsCol());
+    await setDoc(recordRef, {
+      classId: S.currentClass,
+      studentId: student.id,
+      studentName: student.name,
+      details: cleanDetails,
+      date: currentDate,
+      timestamp: serverTimestamp()
+    });
+    await updateDoc(studentDocRef(student.id), { presentCount: (student.presentCount || 0) + 1 });
+    closeModal('recordModal');
+    syncToGoogleSheets(S.currentClass, student.name, cleanDetails, currentDate);
+  } catch (e) { console.error('발표 기록 저장 에러:', e); }
+}
+
+function syncToGoogleSheets(classId, studentName, details, date){
+  if (!GOOGLE_SCRIPT_URL || !GOOGLE_SCRIPT_URL.startsWith('http')) return;
+  fetch(GOOGLE_SCRIPT_URL, {
+    method: 'POST',
+    headers: { 'Content-Type': 'text/plain;charset=utf-8' },
+    body: JSON.stringify({ classId, studentName, details, date })
+  }).catch(e => console.error('Google Sheets 연동 보류', e));
+}
+
+async function populateDefaultData(uid){
+  S.loading = true; showLoading();
+  try {
+    const snap = await getDocs(collection(db, 'artifacts', APP_ID, 'users', uid, 'students'));
+    await Promise.all(snap.docs.map(d => deleteDoc(d.ref)));
+
+    const promises = [];
+    Object.keys(DEFAULT_DATA).forEach(cls => {
+      DEFAULT_DATA[cls].forEach(st => {
+        const ref = doc(collection(db, 'artifacts', APP_ID, 'users', uid, 'students'));
+        promises.push(setDoc(ref, {
+          classId: cls, name: st.n, row: st.r, col: st.c,
+          presentCount: 0, emoji: st.emoji || '⭐', highlight: st.highlight || false
+        }));
+      });
+    });
+    await Promise.all(promises);
+  } catch (e) { console.error('데이터 초기화 에러:', e); }
+}
+
+/* -----------------------------------------------------------
+   CSV 다운로드
+----------------------------------------------------------- */
+function exportToCSV(){
+  let csv = 'data:text/csv;charset=utf-8,\uFEFF날짜,반,이름,발표내용\n';
+  S.presentations.forEach(p => {
+    csv += `"${p.date}","${p.classId}","${p.studentName}","${(p.details || '').replace(/"/g, '""')}"\n`;
+  });
+  const link = document.createElement('a');
+  link.setAttribute('href', encodeURI(csv));
+  link.setAttribute('download', '발표기록.csv');
+  document.body.appendChild(link);
+  link.click();
+  document.body.removeChild(link);
+}
+document.getElementById('exportBtn').addEventListener('click', exportToCSV);
+document.getElementById('settingsBtn').addEventListener('click', () => openModal('resetModal'));
+
+/* -----------------------------------------------------------
+   모달 제어
+----------------------------------------------------------- */
+function openModal(id){
+  document.getElementById(id).classList.remove('hidden');
+  refreshIcons();
+}
+function closeModal(id){
+  document.getElementById(id).classList.add('hidden');
+  if (id === 'editModal') resetDeleteConfirm();
+}
+document.querySelectorAll('[data-close]').forEach(btn => {
+  btn.addEventListener('click', () => closeModal(btn.dataset.close));
+});
+
+function openRecordModal(student){
+  document.getElementById('recordInitial').textContent = student.name[0];
+  document.getElementById('recordName').textContent = `${student.name} ${student.emoji || ''}`;
+  document.getElementById('recordForm').reset();
+  document.getElementById('recordForm').dataset.studentId = student.id;
+  openModal('recordModal');
+}
+document.getElementById('recordForm').addEventListener('submit', (e) => {
+  e.preventDefault();
+  const id = e.target.dataset.studentId;
+  const student = S.students.find(s => s.id === id);
+  const details = e.target.details.value;
+  if (student) handleRecordPresentation(student, details);
+});
+
+document.getElementById('addForm').addEventListener('submit', (e) => {
+  e.preventDefault();
+  handleAddStudent(e.target.studentName.value);
+  e.target.reset();
+});
+
+let editingStudentId = null;
+function openEditModal(student){
+  editingStudentId = student.id;
+  const form = document.getElementById('editForm');
+  form.studentName.value = student.name;
+  resetDeleteConfirm();
+  openModal('editModal');
+}
+document.getElementById('editForm').addEventListener('submit', (e) => {
+  e.preventDefault();
+  if (editingStudentId) handleUpdateStudent(editingStudentId, e.target.studentName.value);
+});
+const $deleteToggleBtn = document.getElementById('deleteToggleBtn');
+const $deleteToggleLabel = document.getElementById('deleteToggleLabel');
+function resetDeleteConfirm(){
+  S.deleteConfirm = false;
+  $deleteToggleBtn.style.cssText = 'background:#FFF1F2; color:#E11D48;';
+  $deleteToggleLabel.textContent = '삭제';
+}
+$deleteToggleBtn.addEventListener('click', () => {
+  if (!S.deleteConfirm) {
+    S.deleteConfirm = true;
+    $deleteToggleBtn.style.cssText = 'background:#E11D48; color:#fff; box-shadow:0 10px 20px -8px rgba(225,29,72,.5);';
+    $deleteToggleLabel.textContent = '정말 삭제할까요?';
+  } else {
+    if (editingStudentId) handleDeleteStudent(editingStudentId);
+  }
+});
+
+document.getElementById('resetConfirmBtn').addEventListener('click', () => {
+  if (S.user) populateDefaultData(S.user.uid);
+  closeModal('resetModal');
+});
+
+/* -----------------------------------------------------------
+   로딩 오버레이
+----------------------------------------------------------- */
+function showLoading(){ $loadingOverlay.classList.remove('hidden'); }
+function hideLoading(){ $loadingOverlay.classList.add('hidden'); }
+
+/* -----------------------------------------------------------
+   인증 + 실시간 구독
+----------------------------------------------------------- */
+signInAnonymously(auth).catch(e => console.error('인증 에러:', e));
+
+onAuthStateChanged(auth, (u) => {
+  S.user = u;
+  if (!u) { S.loading = false; hideLoading(); return; }
+
+  let isFirstFetch = true;
+  onSnapshot(studentsCol(), async (snapshot) => {
+    if (isFirstFetch && snapshot.empty) {
+      isFirstFetch = false;
+      await populateDefaultData(u.uid);
+      return;
+    }
+    isFirstFetch = false;
+    S.students = snapshot.docs.map(d => ({ id: d.id, ...d.data() }));
+    S.loading = false;
+    hideLoading();
+    renderTabs();
+    renderModeButtons();
+    renderGrid();
+  }, (err) => { console.error('Firestore(students) 에러:', err); S.loading = false; hideLoading(); });
+
+  onSnapshot(presentationsCol(), (snapshot) => {
+    S.presentations = snapshot.docs.map(d => ({ id: d.id, ...d.data() }));
+    S.presentations.sort((a, b) => (b.timestamp?.toMillis() || 0) - (a.timestamp?.toMillis() || 0));
+  }, (err) => console.error('Firestore(presentations) 에러:', err));
+});
+
+/* -----------------------------------------------------------
+   최초 렌더
+----------------------------------------------------------- */
+renderTabs();
+renderModeButtons();
+refreshIcons();
+</script>
+</body>
+</html>
